@@ -5,7 +5,7 @@ const sequelize = require('../config/database');
 // 我们使用JSONB类型来存储每行数据，这样可以灵活处理不同结构的Excel文件
 const ExcelData = sequelize.define('ExcelData', {
   // 文件信息
-  fileName: {
+  filename: {
     type: DataTypes.STRING,
     allowNull: false
   },
@@ -35,7 +35,7 @@ const ExcelData = sequelize.define('ExcelData', {
   indexes: [
     {
       name: 'excel_data_file_name_idx',
-      fields: ['fileName']
+      fields: ['filename']
     },
     {
       name: 'excel_data_sheet_name_idx',
