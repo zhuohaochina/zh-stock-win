@@ -4,12 +4,12 @@ services:
   # PostgreSQL数据库
   postgres:
     image: postgres:16-alpine
-    container_name: excel-viewer-postgres
+    container_name: zhuohao-postgres
     restart: always
     environment:
-      POSTGRES_DB: excel_viewer
+      POSTGRES_DB: stock
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: 123456
     ports:
       - "5432:5432"
     volumes:
@@ -22,7 +22,7 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
-    container_name: excel-viewer-api
+    container_name: zhuohao-api
     restart: always
     depends_on:
       - postgres
@@ -31,9 +31,9 @@ services:
       PORT: 3000
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: excel_viewer
+      DB_NAME: stock
       DB_USER: postgres
-      DB_PASSWORD: postgres
+      DB_PASSWORD: 123456
       UPLOAD_DIR: uploads
     ports:
       - "3000:3000"
@@ -47,7 +47,7 @@ services:
     build:
       context: ./client
       dockerfile: Dockerfile
-    container_name: excel-viewer-client
+    container_name: zhuohao-client
     restart: always
     depends_on:
       - api
