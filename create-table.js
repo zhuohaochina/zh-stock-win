@@ -17,7 +17,7 @@ async function createTable() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS excel_data (
         id SERIAL PRIMARY KEY,
-        "fileName" VARCHAR(255) NOT NULL,
+        "filename" VARCHAR(255) NOT NULL,
         "originalName" VARCHAR(255) NOT NULL,
         data JSONB NOT NULL,
         "rowIndex" INTEGER NOT NULL,
@@ -29,7 +29,7 @@ async function createTable() {
     
     // 创建索引
     await client.query(`
-      CREATE INDEX IF NOT EXISTS excel_data_file_name_idx ON excel_data("fileName");
+      CREATE INDEX IF NOT EXISTS excel_data_file_name_idx ON excel_data("filename");
     `);
     
     await client.query(`

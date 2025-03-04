@@ -16,24 +16,24 @@ async function parseExcel(filePath, options = {}) {
   }
   
   // 提取文件名
-  const fileName = path.basename(filePath);
+  const filename = path.basename(filePath);
   
   // 尝试不同的解析策略，从最简单到最复杂
   try {
     // 方法1: 使用最安全的方式 - 完全禁用表格处理
-    return await parseSafeMode(filePath, fileName, options);
+    return await parseSafeMode(filePath, filename, options);
   } catch (error1) {
     console.warn('安全模式解析失败，尝试直接模式:', error1.message);
     
     try {
       // 方法2: 尝试直接模式
-      return await parseDirectMode(filePath, fileName, options);
+      return await parseDirectMode(filePath, filename, options);
     } catch (error2) {
       console.warn('直接模式解析失败，尝试替代库解析:', error2.message);
       
       try {
         // 方法3: 使用替代方法（仅提取数据）
-        return await parseFallbackMode(filePath, fileName, options);
+        return await parseFallbackMode(filePath, filename, options);
       } catch (error3) {
         console.error('所有解析方法均失败:', error3.message);
         throw new Error(`无法解析Excel文件，已尝试所有方法: ${error3.message}`);
@@ -45,7 +45,7 @@ async function parseExcel(filePath, options = {}) {
 /**
  * 安全模式 - 使用修改过的ExcelJS读取，完全禁用表格处理
  */
-async function parseSafeMode(filePath, fileName, options = {}) {
+async function parseSafeMode(filePath, filename, options = {}) {
   // 创建一个新的工作簿
   const workbook = new ExcelJS.Workbook();
   
@@ -86,7 +86,7 @@ async function parseSafeMode(filePath, fileName, options = {}) {
     });
     
     // 返回解析的数据
-    return extractWorkbookData(workbook, fileName);
+    return extractWorkbookData(workbook, filename);
   } finally {
     // 恢复原始函数
     XLSX.prototype._processTableEntry = originalProcessTableEntry;
@@ -97,7 +97,7 @@ async function parseSafeMode(filePath, fileName, options = {}) {
 /**
  * 直接模式 - 使用流解析方式
  */
-async function parseDirectMode(filePath, fileName, options = {}) {
+async function parseDirectMode(filePath, filename, options = {}) {
   const workbook = new ExcelJS.Workbook();
   
   // 读取文件缓冲区
@@ -126,13 +126,13 @@ async function parseDirectMode(filePath, fileName, options = {}) {
   await workbook.xlsx.read(stream, parseOptions);
   
   // 提取数据
-  return extractWorkbookData(workbook, fileName);
+  return extractWorkbookData(workbook, filename);
 }
 
 /**
  * 备用模式 - 最后的尝试，仅提取基本数据
  */
-async function parseFallbackMode(filePath, fileName, options = {}) {
+async function parseFallbackMode(filePath, filename, options = {}) {
   // 创建一个全新的工作簿
   const workbook = new ExcelJS.Workbook();
   
@@ -181,7 +181,7 @@ async function parseFallbackMode(filePath, fileName, options = {}) {
     baseXform.prototype.parse = originalParseMethod;
     
     // 提取数据
-    return extractWorkbookData(workbook, fileName);
+    return extractWorkbookData(workbook, filename);
   } catch (error) {
     throw new Error(`备用模式解析失败: ${error.message}`);
   }
@@ -190,7 +190,7 @@ async function parseFallbackMode(filePath, fileName, options = {}) {
 /**
  * 从工作簿中提取数据和列信息
  */
-function extractWorkbookData(workbook, fileName) {
+function extractWorkbookData(workbook, filename) {
   // 检查是否有工作表
   if (!workbook.worksheets || workbook.worksheets.length === 0) {
     throw new Error('Excel文件中没有工作表');
@@ -387,7 +387,7 @@ function extractWorkbookData(workbook, fileName) {
         data.push({
           rowData,
           rowIndex: rowNumber - 1,
-          fileName,
+          filename,
           sheetName
         });
       });
@@ -431,7 +431,7 @@ function extractWorkbookData(workbook, fileName) {
               data.push({
                 rowData,
                 rowIndex: rowNumber - 1,
-                fileName,
+                filename,
                 sheetName
               });
             }
@@ -446,7 +446,7 @@ function extractWorkbookData(workbook, fileName) {
     }
     
     // 返回结果
-    return { data, columns, fileName, sheetName };
+    return { data, columns, filename, sheetName };
   } catch (extractError) {
     console.error('提取数据时出错:', extractError);
     throw new Error(`提取数据失败: ${extractError.message}`);

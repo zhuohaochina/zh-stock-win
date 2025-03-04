@@ -35,7 +35,7 @@ const getDataList = async (req, res) => {
     
     // 查询最新上传的文件
     const latestFile = await ExcelData.findOne({
-      attributes: ['fileName'],
+      attributes: ['filename'],
       order: [['createdAt', 'DESC']]
     });
     
@@ -67,7 +67,7 @@ const getDataList = async (req, res) => {
     
     // 构建筛选条件
     const whereCondition = {
-      fileName: latestFile.fileName
+      filename: latestFile.filename
     };
     
     // 处理筛选条件
@@ -144,13 +144,13 @@ const getFileList = async (req, res) => {
   try {
     const files = await ExcelData.findAll({
       attributes: [
-        'fileName', 
+        'filename', 
         'originalName', 
         'sheetName',
         [sequelize.fn('COUNT', sequelize.col('id')), 'rowCount'],
         [sequelize.fn('MAX', sequelize.col('createdAt')), 'uploadedAt']
       ],
-      group: ['fileName', 'originalName', 'sheetName'],
+      group: ['filename', 'originalName', 'sheetName'],
       order: [[sequelize.fn('MAX', sequelize.col('createdAt')), 'DESC']]
     });
     
@@ -172,7 +172,7 @@ const getFileList = async (req, res) => {
  */
 const getDataByFileName = async (req, res) => {
   try {
-    const { fileName } = req.params;
+    const { filename } = req.params;
     const page = parseInt(req.query.page) || 1;
     const pageSize = parseInt(req.query.pageSize) || 10;
     const offset = (page - 1) * pageSize;
@@ -213,7 +213,7 @@ const getDataByFileName = async (req, res) => {
     
     // 构建筛选条件
     const whereCondition = {
-      fileName: fileName
+      filename: filename
     };
     
     // 处理筛选条件
