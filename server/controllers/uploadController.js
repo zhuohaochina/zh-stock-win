@@ -19,11 +19,11 @@ const storage = multer.diskStorage({
     
     cb(null, uploadDir);
   },
-  filename: (req, file, cb) => {
+  file_name: (req, file, cb) => {
     // 使用时间戳和随机数生成唯一文件名
     const uniqueSuffix = Date.now() + '-' + crypto.randomBytes(6).toString('hex');
-    const filename = `${uniqueSuffix}${path.extname(file.originalname)}`;
-    cb(null, filename);
+    const file_name = `${uniqueSuffix}${path.extname(file.originalname)}`;
+    cb(null, file_name);
   }
 });
 
@@ -54,12 +54,12 @@ const upload = multer({
 }).single('file');
 
 // 清理旧数据
-const cleanupOldData = async (filename) => {
+const cleanupOldData = async (file_name) => {
   try {
     // 删除与此文件名相关的所有现有数据
     await ExcelData.destroy({
       where: {
-        filename: filename
+        file_name: file_name
       }
     });
   } catch (error) {
@@ -112,7 +112,7 @@ const handleUpload = (req, res) => {
         throw new Error(`解析Excel文件失败: ${parseError.message}`);
       }
       
-      const { data, columns, filename, sheetName } = parseResult;
+      const { data, columns, file_name, sheetName } = parseResult;
       
       if (!data || data.length === 0) {
         return res.status(400).json({
@@ -171,14 +171,14 @@ const handleUpload = (req, res) => {
       // 如果没有动态创建表，或者动态创建失败，使用原始存储方式
       if (!tableCreated) {
         // 先清理与此文件相关的旧数据
-        await cleanupOldData(filename);
+        await cleanupOldData(file_name);
         
         // 批量保存数据到excel_data表
         const batchSize = 100; // 每批保存100条记录
         const batches = [];
         for (let i = 0; i < data.length; i += batchSize) {
           const batch = data.slice(i, i + batchSize).map(row => ({
-            filename: filename,
+            file_name: file_name,
             originalName: req.file.originalname,
             data: row.rowData,
             rowIndex: row.rowIndex,

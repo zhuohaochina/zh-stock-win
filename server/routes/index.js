@@ -31,6 +31,6 @@ router.post('/upload', handleUpload);
 // 数据查询路由
 router.get('/data', getDataList);
 router.get('/files', getFileList);
-router.get('/data/:filename', getDataByFileName);
+router.get('/data/:file_name', getDataByFileName);
 
 module.exports = router; 
