@@ -21,7 +21,7 @@ async function createTable() {
         "originalName" VARCHAR(255) NOT NULL,
         data JSONB NOT NULL,
         "rowIndex" INTEGER NOT NULL,
-        "sheetName" VARCHAR(255),
+        "sheet_name" VARCHAR(255),
         "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
         "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
       );
@@ -33,7 +33,7 @@ async function createTable() {
     `);
     
     await client.query(`
-      CREATE INDEX IF NOT EXISTS excel_data_sheet_name_idx ON excel_data("sheetName");
+      CREATE INDEX IF NOT EXISTS excel_data_sheet_name_idx ON excel_data("sheet_name");
     `);
     
     console.log('成功创建excel_data表和索引');

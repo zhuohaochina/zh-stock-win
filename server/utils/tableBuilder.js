@@ -238,5 +238,6 @@ module.exports = {
   createTableFromExcel,
   insertDataToTable,
   getDynamicTables,
-  getTableColumns
+  getTableColumns,
+  storeColumnHeaders
 }; 

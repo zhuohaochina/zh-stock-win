@@ -6,6 +6,11 @@ const routes = [
     path: '/',
     name: 'Home',
     component: Home
+  },
+  {
+    path: '/tables/:tableName/data/:id',
+    name: 'TableData',
+    component: Home
   }
 ]
 

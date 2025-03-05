@@ -323,13 +323,13 @@
           :dataSource="tableData"
           :columns="antTableColumns"
           :pagination="{
-            current: currentPage,
-            pageSize: pageSize,
-            total: total,
+            current: tablePagination.current,
+            pageSize: tablePagination.pageSize,
+            total: tablePagination.total,
             showSizeChanger: true,
             showQuickJumper: true,
             pageSizeOptions: ['10', '20', '50', '100'],
-            showTotal: total => `共 ${total} 条记录`,
+            showTotal: (total) => `共 ${total} 条记录`,
             onChange: handlePageChange,
             onShowSizeChange: handleSizeChange,
             size: 'small',
@@ -340,9 +340,10 @@
           :loading="tableLoading"
           rowKey="rowIndex"
           :rowClassName="(record, index) => (index % 2 === 1 ? 'table-striped' : '')"
-          @change="handleTableChange"
           :customFilterDropdown="true"
           :remote="true"
+          @sorterChange="handleSorterChange"
+          @filterChange="handleFilterChange"
         >
           <template #bodyCell="{ column, text, record }">
             <template v-if="column?.ellipsis">
@@ -409,6 +410,17 @@ const tableColumns = ref([])
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
+
+// 添加分页状态对象
+const tablePagination = reactive({
+  current: 1,
+  pageSize: 10,
+  total: 0,
+  showSizeChanger: true,
+  showQuickJumper: true,
+  pageSizeOptions: ['10', '20', '50', '100']
+})
+
 const fileList = ref([])
 const currentFileName = ref('')
 const dynamicTables = ref([])
@@ -491,7 +503,18 @@ const antTableColumns = computed(() => {
     key: col.prop,
     align: 'center',
     minWidth: 120,
-    sorter: true
+    sorter: true,
+    onFilter: (value, record) => {
+      if (typeof value === 'string' && record[col.prop]) {
+        return record[col.prop].toString().toLowerCase().includes(value.toLowerCase());
+      }
+      return false;
+    },
+    onFilterDropdownVisibleChange: (visible) => {
+      if (visible) {
+        console.log(`显示 ${col.label} 的筛选菜单`);
+      }
+    }
   }));
   
   // 添加操作列
@@ -513,60 +536,25 @@ const isTableLocked = (tableName) => {
   return Boolean(table && table.locked); // 确保返回布尔值
 }
 
-// 获取所有动态表
-const fetchDynamicTables = async () => {
-  try {
-    console.log('正在获取动态表列表...');
-    const response = await axios.get('/api/tables');
-    
-    if (response.data.success) {
-      console.log('成功获取动态表列表:', response.data.tables);
-      
-      // 从本地存储加载锁定状态
-      let savedLockStatus = {};
-      try {
-        const savedData = localStorage.getItem('lockedTables');
-        if (savedData) {
-          savedLockStatus = JSON.parse(savedData);
-          console.log('从本地存储加载的表锁定状态:', savedLockStatus);
-        }
-      } catch (e) {
-        console.error('加载本地锁定状态时出错:', e);
-      }
-      
-      // 过滤掉系统表和保留表
-      const userTables = response.data.tables.filter(name => 
-        name !== 'table_metadata' && 
-        !name.startsWith('system_') && 
-        !name.startsWith('_')
-      );
-      
-      // 保持已有表的锁定状态，优先使用内存中的状态，其次是本地存储中的状态
-      dynamicTables.value = userTables.map(name => {
-        const existingTable = dynamicTables.value.find(t => t.name === name);
-        return { 
-          name, 
-          locked: existingTable ? existingTable.locked : (savedLockStatus[name] || false)
-        };
-      });
-    } else {
-      console.error('获取表列表失败:', response.data.message);
-      message.error('获取表列表失败');
-    }
-  } catch (error) {
-    console.error('获取动态表列表请求失败:', error);
-    message.error('获取表列表失败，请检查网络连接');
-  }
-}
-
-// 查看表数据
+// 查看表格数据
 const viewTableData = async (tableName) => {
-  currentTableName.value = tableName
-  currentFileName.value = ''
-  currentPage.value = 1
+  if (!tableName) return;
   
-  await fetchTableData()
-}
+  currentTableName.value = tableName;
+  currentFileName.value = '';
+  currentPage.value = 1;
+  tablePagination.current = 1;
+  tablePagination.pageSize = 10;
+  
+  // 清空筛选和排序状态
+  filterInfo.value = {};
+  searchKeywords.value = {};
+  sortInfo.value = { field: '', order: '' };
+  globalSearchKeyword.value = '';
+  selectedSearchColumn.value = 'all';
+  
+  await fetchTableData();
+};
 
 // 获取表数据
 const fetchTableData = async () => {
@@ -575,20 +563,20 @@ const fetchTableData = async () => {
   tableLoading.value = true;
   
   try {
-    console.log('正在获取表数据，参数:', {
+    console.log('获取表数据，参数:', {
       tableName: currentTableName.value,
-      page: currentPage.value,
-      pageSize: pageSize.value,
+      page: tablePagination.current,
+      pageSize: tablePagination.pageSize,
       sortField: sortInfo.value.field,
       sortOrder: sortInfo.value.order,
-      filters: filterInfo.value,
-      searchKeywords: searchKeywords.value
+      filters: Object.keys(filterInfo.value).length > 0 ? '有筛选条件' : '无筛选条件',
+      searchKeywords: Object.keys(searchKeywords.value).length > 0 ? '有搜索关键字' : '无搜索关键字'
     });
 
-    const response = await axios.get(`/api/tables/${currentTableName.value}/data`, {
+    const response = await axios.get(`tables/${currentTableName.value}/data`, {
       params: {
-        page: currentPage.value,
-        pageSize: pageSize.value,
+        page: tablePagination.current,
+        pageSize: tablePagination.pageSize,
         sortField: sortInfo.value.field,
         sortOrder: sortInfo.value.order,
         filters: JSON.stringify(filterInfo.value),
@@ -596,21 +584,34 @@ const fetchTableData = async () => {
       }
     });
     
-    console.log('获取到的响应:', response.data);
+    console.log('获取到数据，总记录数:', response.data.total);
     
     if (response.data.success) {
       // 确保数据是数组并添加行索引
       if (Array.isArray(response.data.data)) {
         tableData.value = response.data.data.map((item, index) => ({
           ...item,
-          rowIndex: index + 1 + (currentPage.value - 1) * pageSize.value
+          rowIndex: index + 1 + (tablePagination.current - 1) * tablePagination.pageSize
         }));
       } else {
         console.warn('服务器返回的数据不是数组:', response.data.data);
         tableData.value = [];
       }
       
-      total.value = response.data.total || 0;
+      // 确保总记录数是有效的数字
+      if (typeof response.data.total === 'number') {
+        tablePagination.total = response.data.total;
+        total.value = response.data.total; // 保持兼容
+      } else if (response.data.total !== undefined) {
+        tablePagination.total = parseInt(response.data.total) || 0;
+        total.value = parseInt(response.data.total) || 0; // 保持兼容
+      } else {
+        tablePagination.total = 0;
+        total.value = 0; // 保持兼容
+        console.warn('服务器未返回总记录数或格式不正确');
+      }
+      
+      console.log('设置总记录数为:', tablePagination.total);
       
       // 处理列信息
       if (response.data.columns && Array.isArray(response.data.columns)) {
@@ -671,7 +672,7 @@ const confirmDeleteTable = (tableName) => {
 // 删除表
 const deleteTable = async (tableName) => {
   try {
-    const response = await axios.delete(`/api/tables/${tableName}`)
+    const response = await axios.delete(`tables/${tableName}`)
     
     if (response.data.success) {
       message.success(response.data.message)
@@ -769,7 +770,7 @@ const fetchData = async () => {
       searchKeywords: JSON.stringify(searchKeywords.value)
     });
 
-    const response = await fetch(`/api/tables/${currentTableName.value}/data?${params}`);
+    const response = await fetch(`tables/${currentTableName.value}/data?${params}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -899,7 +900,7 @@ const confirmUpload = async () => {
     formData.append('targetTableLocked', isTableLocked(uploadForm.tableName).toString());
     
     // 执行上传
-    const response = await axios.post('/api/upload', formData);
+    const response = await axios.post('/upload', formData);
     
     message.destroy(); // 清除所有消息，包括"上传中"
     
@@ -1083,85 +1084,6 @@ const clearAllFilters = () => {
   });
 }
 
-// 处理表格变化 (排序、筛选等)
-const handleTableChange = (pagination, filters, sorter) => {
-  console.log('表格变化:', { pagination, sorter, filters });
-  
-  // 判断是否为分页操作
-  const isPaginationChange = 
-    pagination.current !== currentPage.value || 
-    pagination.pageSize !== pageSize.value;
-  
-  // 更新页码和每页数量
-  if (isPaginationChange) {
-    currentPage.value = pagination.current;
-    pageSize.value = pagination.pageSize;
-  }
-  
-  // 更新排序信息
-  if (sorter && sorter.field) {
-    sortInfo.value.field = sorter.field;
-    sortInfo.value.order = sorter.order;
-  } else {
-    sortInfo.value = { field: '', order: '' };
-  }
-  
-  // 更新筛选信息
-  filterInfo.value = {};
-  searchKeywords.value = {};
-  
-  // 处理筛选条件
-  if (filters) {
-    Object.keys(filters).forEach(key => {
-      if (filters[key]) {
-        if (Array.isArray(filters[key]) && filters[key].length > 0) {
-          filterInfo.value[key] = filters[key];
-          console.log(`添加筛选条件 ${key}:`, filters[key]);
-        }
-        
-        if (filters[key]._custom && typeof filters[key]._custom === 'string' && filters[key]._custom.trim()) {
-          searchKeywords.value[key] = filters[key]._custom.trim();
-          console.log(`添加搜索关键字 ${key}:`, filters[key]._custom.trim());
-        }
-      }
-    });
-  }
-  
-  // 仅当是排序或筛选变化时才重置到第一页
-  if ((sorter && sorter.column) || Object.keys(filters).some(key => filters[key]?.length > 0)) {
-    currentPage.value = 1;
-  }
-  
-  // 设置表格加载状态
-  tableLoading.value = true;
-  
-  // 显示筛选应用中的提示
-  let filterApplyMsg;
-  if (Object.keys(filterInfo.value).length > 0 || Object.keys(searchKeywords.value).length > 0) {
-    filterApplyMsg = message.loading('正在对所有数据应用筛选条件...', 0);
-  }
-  
-  console.log('发送请求到后端，参数:', {
-    page: currentPage.value,
-    pageSize: pageSize.value,
-    sortField: sortInfo.value.field,
-    sortOrder: sortInfo.value.order,
-    filters: filterInfo.value,
-    searchKeywords: searchKeywords.value
-  });
-  
-  // 重新获取数据
-  fetchTableData().finally(() => {
-    if (filterApplyMsg) {
-      filterApplyMsg();
-      
-      if (Object.keys(filterInfo.value).length > 0 || Object.keys(searchKeywords.value).length > 0) {
-        message.success('已对全部数据应用筛选条件');
-      }
-    }
-  });
-}
-
 // 处理全局搜索
 const handleGlobalSearch = (value) => {
   if (!value) {
@@ -1220,19 +1142,12 @@ const handleEditOk = async () => {
 
   tableLoading.value = true;
   try {
-    const response = await fetch(
-      `/api/tables/${currentTableName.value}/data/${editingRecord.value.id}`,
-      {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ data: editForm.value })
-      }
+    const response = await axios.put(
+      `tables/${currentTableName.value}/data/${editingRecord.value.id}`,
+      { data: editForm.value }
     );
 
-    const result = await response.json();
-    if (result.success) {
+    if (response.data.success) {
       message.success('修改成功');
       editModalVisible.value = false;
       editingRecord.value = null;
@@ -1240,11 +1155,11 @@ const handleEditOk = async () => {
       // 重新加载数据
       await fetchTableData();
     } else {
-      throw new Error(result.message || '修改失败');
+      throw new Error(response.data.message || '修改失败');
     }
   } catch (error) {
     console.error('修改数据错误:', error);
-    message.error('修改数据时发生错误: ' + error.message);
+    message.error('修改数据时发生错误: ' + (error.response?.data?.message || error.message));
   } finally {
     tableLoading.value = false;
   }
@@ -1283,7 +1198,7 @@ const executeSql = async (isPageChange = false) => {
 
   sqlLoading.value = true;
   try {
-    const response = await axios.post('/api/sql/execute', {
+    const response = await axios.post('/sql/execute', {
       sql: sqlQuery.value,
       pageSize: sqlPagination.pageSize,
       page: sqlPagination.current
@@ -1374,7 +1289,7 @@ const testUploadParams = async () => {
     console.log('测试上传参数:', testParams);
     
     // 向后端发送测试请求
-    const response = await axios.post('/api/upload/test-params', testParams, {
+    const response = await axios.post('/upload/test-params', testParams, {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
@@ -1409,7 +1324,7 @@ const testForceRecreate = async () => {
   try {
     const hide = message.loading(`正在测试强制重建表 "${tableName.value}"...`, 0);
     
-    const response = await axios.post('/api/tables/recreate', {
+    const response = await axios.post('/tables/recreate', {
       tableName: tableName.value,
       forceRecreate: true
     }, {
@@ -1434,6 +1349,172 @@ const testForceRecreate = async () => {
   } catch (error) {
     message.error(`测试重建表时出错: ${error.response?.data?.message || error.message}`);
     console.error('测试重建表错误:', error);
+  }
+};
+
+// 修改handlePageChange函数确保只发送一次请求并正确保留筛选条件
+const handlePageChange = (page, pageSizeVal) => {
+  console.log('页码变化 handlePageChange:', page, '每页数量:', pageSizeVal);
+  
+  // 更新页码和每页数量
+  tablePagination.current = page;
+  tablePagination.pageSize = pageSizeVal;
+  
+  // 安全地更新兼容性变量
+  if (typeof currentPage === 'object' && currentPage !== null) {
+    currentPage.value = page;
+  }
+  if (typeof pageSize === 'object' && pageSize !== null) {
+    pageSize.value = pageSizeVal;
+  }
+  
+  // 获取数据
+  tableLoading.value = true;
+  fetchTableData().finally(() => {
+    tableLoading.value = false;
+  });
+};
+
+// 修改handleSizeChange函数
+const handleSizeChange = (page, pageSizeVal) => {
+  console.log('每页数量变化 handleSizeChange:', page, pageSizeVal);
+  
+  // 当页面大小改变时，重置当前页为1
+  tablePagination.current = 1;
+  tablePagination.pageSize = pageSizeVal;
+  
+  // 安全地更新兼容性变量
+  if (typeof currentPage === 'object' && currentPage !== null) {
+    currentPage.value = 1;
+  }
+  if (typeof pageSize === 'object' && pageSize !== null) {
+    pageSize.value = pageSizeVal;
+  }
+  
+  // 获取数据
+  tableLoading.value = true;
+  fetchTableData().finally(() => {
+    tableLoading.value = false;
+  });
+};
+
+// 添加表格排序处理函数
+const handleSorterChange = (sorter) => {
+  console.log('表格排序变化:', sorter);
+  
+  // 更新排序信息
+  if (sorter && sorter.column) {
+    sortInfo.value.field = sorter.field;
+    sortInfo.value.order = sorter.order;
+  } else {
+    sortInfo.value = { field: '', order: '' };
+  }
+  
+  // 重置到第一页
+  currentPage.value = 1;
+  
+  // 设置表格加载状态
+  tableLoading.value = true;
+  
+  // 重新获取数据
+  fetchTableData().finally(() => {
+    tableLoading.value = false;
+  });
+};
+
+// 添加表格筛选处理函数
+const handleFilterChange = (filters) => {
+  console.log('表格筛选变化:', filters);
+  
+  // 更新筛选信息
+  filterInfo.value = {};
+  searchKeywords.value = {};
+  
+  // 处理筛选条件
+  if (filters) {
+    Object.keys(filters).forEach(key => {
+      if (filters[key]) {
+        if (Array.isArray(filters[key]) && filters[key].length > 0) {
+          filterInfo.value[key] = filters[key];
+          console.log(`添加筛选条件 ${key}:`, filters[key]);
+        }
+        
+        if (filters[key]._custom && typeof filters[key]._custom === 'string' && filters[key]._custom.trim()) {
+          searchKeywords.value[key] = filters[key]._custom.trim();
+          console.log(`添加搜索关键字 ${key}:`, filters[key]._custom.trim());
+        }
+      }
+    });
+  }
+  
+  // 重置到第一页
+  currentPage.value = 1;
+  
+  // 设置表格加载状态
+  tableLoading.value = true;
+  
+  // 显示筛选应用中的提示
+  let filterApplyMsg;
+  if (Object.keys(filterInfo.value).length > 0 || Object.keys(searchKeywords.value).length > 0) {
+    filterApplyMsg = message.loading('正在对所有数据应用筛选条件...', 0);
+  }
+  
+  // 重新获取数据
+  fetchTableData().finally(() => {
+    if (filterApplyMsg) {
+      filterApplyMsg();
+      
+      if (Object.keys(filterInfo.value).length > 0 || Object.keys(searchKeywords.value).length > 0) {
+        message.success('已对全部数据应用筛选条件');
+      }
+    }
+    tableLoading.value = false;
+  });
+};
+
+// 获取所有动态表
+const fetchDynamicTables = async () => {
+  try {
+    console.log('正在获取动态表列表...');
+    const response = await axios.get('/tables');
+    
+    if (response.data.success) {
+      console.log('成功获取动态表列表:', response.data.tables);
+      
+      // 从本地存储加载锁定状态
+      let savedLockStatus = {};
+      try {
+        const savedData = localStorage.getItem('lockedTables');
+        if (savedData) {
+          savedLockStatus = JSON.parse(savedData);
+          console.log('从本地存储加载的表锁定状态:', savedLockStatus);
+        }
+      } catch (e) {
+        console.error('加载本地锁定状态时出错:', e);
+      }
+      
+      // 过滤掉系统表和保留表
+      const userTables = response.data.tables.filter(name => 
+        name !== 'table_metadata' && 
+        !name.startsWith('system_') && 
+        !name.startsWith('_')
+      );
+      
+      // 保持已有表的锁定状态，优先使用内存中的状态，其次是本地存储中的状态
+      dynamicTables.value = userTables.map(name => {
+        const existingTable = dynamicTables.value.find(t => t.name === name);
+        return { 
+          name, 
+          locked: existingTable ? existingTable.locked : (savedLockStatus[name] || false)
+        };
+      });
+    } else {
+      console.error('获取表列表失败:', response.data.message);
+      message.error('获取表列表失败');
+    }
+  } catch (error) {
+    console.error('获取动态表列表请求失败:', error);
+    message.error('获取表列表失败，请检查网络连接');
   }
 };
 

@@ -5,6 +5,7 @@ const path = require('path');
 const { sequelize } = require('./models');
 const routes = require('./routes');
 const net = require('net');
+const { storeColumnHeaders } = require('./utils/tableBuilder');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -72,8 +73,11 @@ async function startServer() {
     console.log('数据库连接成功');
     
     // 同步数据库模型
-    await sequelize.sync();
+    await sequelize.sync({ force: true });
     console.log('数据库已同步');
+
+    // 初始化表元数据（在数据库同步后执行）
+    await initializeTableMetadata();
     
     // 检查端口是否被占用
     const portInUse = await isPortInUse(PORT);
@@ -91,6 +95,25 @@ async function startServer() {
   } catch (error) {
     console.error('启动服务器时出错:', error);
     process.exit(1);
+  }
+}
+
+// 创建初始化元数据的函数
+async function initializeTableMetadata() {
+  try {
+    // 为每个表初始化元数据
+    await storeColumnHeaders('demo1', [
+      { field: 'id', headerName: 'ID', type: 'number' },
+      { field: 'name', headerName: '名称', type: 'string' },
+      // 添加更多列...
+    ]);
+    
+    // 如果有更多表，继续添加
+    // await storeColumnHeaders('demo2', [...]);
+    
+    console.log('表元数据初始化完成');
+  } catch (error) {
+    console.error('表元数据初始化失败:', error);
   }
 }
 

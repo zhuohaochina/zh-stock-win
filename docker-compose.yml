@@ -46,14 +46,11 @@ services:
   client:
     build:
       context: ./client
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.local
     container_name: zhuohao-client
     restart: always
     depends_on:
       - api
-    ports:
-      # 删除或注释掉这部分
-      # - "80:80"
     networks:
       - app-network
 

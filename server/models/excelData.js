@@ -24,7 +24,7 @@ const ExcelData = sequelize.define('ExcelData', {
     allowNull: false
   },
   // 存储表名或工作表名
-  sheetName: {
+  sheet_name: {
     type: DataTypes.STRING,
     allowNull: true
   }
@@ -39,7 +39,7 @@ const ExcelData = sequelize.define('ExcelData', {
     },
     {
       name: 'excel_data_sheet_name_idx',
-      fields: ['sheetName']
+      fields: ['sheet_name']
     }
   ]
 });
