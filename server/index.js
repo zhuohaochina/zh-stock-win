@@ -68,16 +68,21 @@ app.use((err, req, res, next) => {
 // 启动服务器
 async function startServer() {
   try {
-    // 检查数据库连接
-    await sequelize.authenticate();
-    console.log('数据库连接成功');
-    
-    // 同步数据库模型
-    await sequelize.sync({ force: true });
-    console.log('数据库已同步');
+    // 检查是否模拟数据库连接
+    if (process.env.DB_MOCK === 'true') {
+      console.log('⚠️ 警告: 使用模拟数据库模式，跳过数据库连接验证');
+    } else {
+      // 检查数据库连接
+      await sequelize.authenticate();
+      console.log('数据库连接成功');
+      
+      // 同步数据库模型
+      await sequelize.sync({ force: true });
+      console.log('数据库已同步');
 
-    // 初始化表元数据（在数据库同步后执行）
-    await initializeTableMetadata();
+      // 初始化表元数据（在数据库同步后执行）
+      await initializeTableMetadata();
+    }
     
     // 检查端口是否被占用
     const portInUse = await isPortInUse(PORT);
